@@ -43,6 +43,25 @@ bool isAria2Installed()
 void installAria2()
 {
 #ifdef _WIN32
+    cout << "Aria2 is not installed. Installing for current user...\n";
+
+    // 1️⃣ Define user folder installation path
+    string installDir = string(getenv("USERPROFILE")) + "\\Aria2";
+
+    // 2️⃣ Download latest GitHub ZIP
+    system(("powershell -Command \""
+            "Invoke-WebRequest -Uri https://github.com/aria2/aria2/releases/latest/download/aria2-1.37.0-win-64bit-build1.zip "
+            "-OutFile %USERPROFILE%\\aria2.zip\"").c_str());
+
+    // 3️⃣ Extract ZIP to user folder
+    system(("powershell -Command \""
+            "Expand-Archive -Path %USERPROFILE%\\aria2.zip "
+            "-DestinationPath " + installDir + " -Force\"").c_str());
+
+    // 4️⃣ Add folder to PATH (user-level)
+    system(("setx PATH \"%PATH%;" + installDir + "\"").c_str());
+
+    cout << "✅ Aria2 installed successfully at " << installDir << " and added to PATH.\n";
 
 #else
     system("sudo apt update && sudo apt install -y aria2");
@@ -86,7 +105,13 @@ int main() {
     
 
 #ifdef _WIN32
-    string command = "aria2c.exe --dir=\"" + finalPath +
+    // string command = "aria2c.exe --dir=\"" + finalPath +
+    string aria2Path = expandPath("\\Aria2\\aria2c.exe");
+    string command = "\"" + aria2Path + "\" --dir=\"" + finalPath + 
+    // After installation, aria2c.exe is in PATH, but sometimes the PATH update requires a new terminal session.
+    // Consider using full path to the executable immediately after extraction
+    //This ensures your program runs aria2c right after installation, without waiting for PATH to refresh.  
+
 #else
     string command = "aria2c --dir=\"" + finalPath +
 #endif
