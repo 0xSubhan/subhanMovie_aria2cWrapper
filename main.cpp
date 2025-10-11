@@ -1,12 +1,26 @@
 #include <iostream>
 #include <string>
-#include <cstdlib>  // for system()
+#include <cstdlib>
+#include <cstring>
 
 using namespace std;
 
 // functionality to cancel download
 // functionality to make it cross platform 
 // functionality to download area2c if not downloaded for both ubuntu and windows
+
+string expandPath(const string& path) {
+#ifdef _WIN32
+    const char* home = getenv("USERPROFILE");
+#else
+    const char* home = getenv("HOME");
+#endif
+    if (!home) return path;
+    if (path.rfind("~", 0) == 0) {
+        return string(home) + path.substr(1);
+    }
+    return path;
+}
 
 int main() {
     string magnetLink;
@@ -28,15 +42,20 @@ int main() {
     getline(cin, downloadPath);
 
     if (downloadPath.empty()) {
-        downloadPath = "/home/subhan/Downloads";  // default directory
+        downloadPath = "~/Downloads";  // default directory
     }
 
-    // Step 3: Build aria2c command
-    string command = "aria2c --dir=\"" + downloadPath +
-                 "\" --bt-max-peers=50 --continue=true \"" +
-                 magnetLink + "\""; // download path is also inside double quotes!
+    // handling case where : ~ is not automatically understood by c/c++ so it expands the path
+    string finalPath = expandPath(downloadPath);
+    cout << "\nDownloading to: " << finalPath << endl;
 
-    // Step 4: Execute download command
+#ifdef _WIN32
+    string command = "aria2c.exe --dir=\"" + finalPath +
+#else
+    string command = "aria2c --dir=\"" + finalPath +
+#endif
+        "\" --bt-max-peers=50 --continue=true \"" + magnetLink + "\"";
+
     cout << "\nStarting download using aria2c...\n";
     system(command.c_str());
 
