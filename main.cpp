@@ -7,19 +7,47 @@ using namespace std;
 
 // functionality to cancel download
 // functionality to make it cross platform 
-// functionality to download area2c if not downloaded for both ubuntu and windows
 
 string expandPath(const string& path) {
-#ifdef _WIN32
+    #ifdef _WIN32
     const char* home = getenv("USERPROFILE");
-#else
+    #else
     const char* home = getenv("HOME");
-#endif
+    #endif
     if (!home) return path;
     if (path.rfind("~", 0) == 0) {
         return string(home) + path.substr(1);
     }
     return path;
+}
+// checking if area2c is installed or not!
+bool isAria2Installed()
+{
+#ifdef _WIN32
+    int status = system("where aria2c >nul 2>&1"); // Without redirecting output, it will print errors in terminal.
+    if (status == 0)
+        return true;
+    else
+        return false;    
+    
+#else
+    int status = system("aria2c --version > /dev/null 2>&1"); // Without redirecting output, it will print errors in terminal.
+    if (status == 0)
+        return true;
+    else
+        return false;            
+        
+#endif
+}
+// this function will be called if area2c is not installed:
+void installAria2()
+{
+#ifdef _WIN32
+
+#else
+    system("sudo apt update && sudo apt install -y aria2");
+
+#endif
 }
 
 int main() {
@@ -48,6 +76,14 @@ int main() {
     // handling case where : ~ is not automatically understood by c/c++ so it expands the path
     string finalPath = expandPath(downloadPath);
     cout << "\nDownloading to: " << finalPath << endl;
+
+    // checking if aria2c exist?
+    if (!isAria2Installed())
+    {
+        cout << "Aria2 is not installed. Installing...\n";
+        installAria2();
+    }
+    
 
 #ifdef _WIN32
     string command = "aria2c.exe --dir=\"" + finalPath +
