@@ -45,23 +45,24 @@ void installAria2()
 #ifdef _WIN32
     cout << "Aria2 is not installed. Installing for current user...\n";
 
-    // 1️⃣ Define user folder installation path
-    string installDir = string(getenv("USERPROFILE")) + "\\Aria2";
+    std::string installDir = std::string(getenv("USERPROFILE")) + "\\Aria2";
+    std::string downloadCmd =
+        "powershell -Command \"Invoke-WebRequest -Uri https://github.com/aria2/aria2/releases/latest/download/aria2-1.37.0-win-64bit-build1.zip "
+        "-OutFile $env:USERPROFILE\\aria2.zip\"";
 
-    // 2️⃣ Download latest GitHub ZIP
-    system(("powershell -Command \""
-            "Invoke-WebRequest -Uri https://github.com/aria2/aria2/releases/latest/download/aria2-1.37.0-win-64bit-build1.zip "
-            "-OutFile %USERPROFILE%\\aria2.zip\"").c_str());
+    std::string extractCmd =
+        "powershell -Command \"Expand-Archive -Path $env:USERPROFILE\\aria2.zip "
+        "-DestinationPath " + installDir + " -Force\"";
 
-    // 3️⃣ Extract ZIP to user folder
-    system(("powershell -Command \""
-            "Expand-Archive -Path %USERPROFILE%\\aria2.zip "
-            "-DestinationPath " + installDir + " -Force\"").c_str());
+    std::string setPathCmd =
+        "setx PATH \"%PATH%;" + installDir + "\"";
 
-    // 4️⃣ Add folder to PATH (user-level)
-    system(("setx PATH \"%PATH%;" + installDir + "\"").c_str());
+    system(downloadCmd.c_str());
+    system(extractCmd.c_str());
+    system(setPathCmd.c_str());
 
     cout << "✅ Aria2 installed successfully at " << installDir << " and added to PATH.\n";
+
 
 #else
     system("sudo apt update && sudo apt install -y aria2");
