@@ -1,72 +1,80 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
-#include <cstring>
 
 using namespace std;
 
-// functionality to cancel download
-// functionality to make it cross platform 
-
 string expandPath(const string& path) {
-    #ifdef _WIN32
+#ifdef _WIN32
     const char* home = getenv("USERPROFILE");
-    #else
+#else
     const char* home = getenv("HOME");
-    #endif
+#endif
     if (!home) return path;
     if (path.rfind("~", 0) == 0) {
         return string(home) + path.substr(1);
     }
     return path;
 }
-// checking if area2c is installed or not!
+
 bool isAria2Installed()
 {
 #ifdef _WIN32
-    int status = system("where aria2c >nul 2>&1"); // Without redirecting output, it will print errors in terminal.
-    if (status == 0)
-        return true;
-    else
-        return false;    
-    
+    int status = system("where aria2c >nul 2>&1");
+    return (status == 0);
 #else
-    int status = system("aria2c --version > /dev/null 2>&1"); // Without redirecting output, it will print errors in terminal.
-    if (status == 0)
-        return true;
-    else
-        return false;            
-        
+    int status = system("aria2c --version > /dev/null 2>&1");
+    return (status == 0);
 #endif
 }
-// this function will be called if area2c is not installed:
+
 void installAria2()
 {
 #ifdef _WIN32
     cout << "Aria2 is not installed. Installing for current user...\n";
 
     std::string installDir = std::string(getenv("USERPROFILE")) + "\\Aria2";
+
+    // 1️⃣ Download Aria2 ZIP
     std::string downloadCmd =
-        "powershell -Command \"Invoke-WebRequest -Uri https://github.com/aria2/aria2/releases/latest/download/aria2-1.37.0-win-64bit-build1.zip "
+        "powershell -NoProfile -ExecutionPolicy Bypass -Command "
+        "\"Invoke-WebRequest -Uri https://github.com/aria2/aria2/releases/latest/download/aria2-1.37.0-win-64bit-build1.zip "
         "-OutFile $env:USERPROFILE\\aria2.zip\"";
 
+    // 2️⃣ Extract ZIP to custom folder
     std::string extractCmd =
-        "powershell -Command \"Expand-Archive -Path $env:USERPROFILE\\aria2.zip "
-        "-DestinationPath " + installDir + " -Force\"";
+        "powershell -NoProfile -ExecutionPolicy Bypass -Command "
+        "\"Expand-Archive -Path $env:USERPROFILE\\aria2.zip -DestinationPath '" + installDir + "' -Force\"";
 
+    // 3️⃣ Add to USER PATH permanently (avoids needing Admin rights)
     std::string setPathCmd =
-        "setx PATH \"%PATH%;" + installDir + "\"";
+        "powershell -NoProfile -ExecutionPolicy Bypass -Command "
+        "\"$p = [Environment]::GetEnvironmentVariable('PATH','User'); "
+        "if (-not ($p -like '*" + installDir + "*')) { "
+        "[Environment]::SetEnvironmentVariable('PATH', $p + ';"+ installDir +"', 'User'); "
+        "Write-Host 'User PATH updated.' } else { Write-Host 'PATH already contains Aria2.' }\"";
 
     system(downloadCmd.c_str());
     system(extractCmd.c_str());
     system(setPathCmd.c_str());
 
-    cout << "✅ Aria2 installed successfully at " << installDir << " and added to PATH.\n";
+    // 4️⃣ Delete ZIP
+    std::string cleanupCmd = "del \"%USERPROFILE%\\aria2.zip\" >nul 2>&1";
+    system(cleanupCmd.c_str());
 
+    cout << "✅ Aria2 installed successfully at: " << installDir << "\n";
+    cout << "ℹ️ Restart terminal to update PATH or use full path immediately.\n";
 
 #else
-    system("sudo apt update && sudo apt install -y aria2");
-
+    cout << "Installing aria2 via apt (you may be prompted for your sudo password)...\n";
+    int status = system("sudo apt update && sudo apt install -y aria2");
+    if (status != 0) {
+        cout << "Error: apt install failed (code " << status << "). Please install aria2 manually (sudo apt install aria2).\n";
+        cout << "Press Enter to exit...";
+        cin.get();
+    } else {
+        cout << "aria2 installed successfully.\n";
+    }
 #endif
 }
 
@@ -76,52 +84,60 @@ int main() {
 
     cout << "===== Simple Torrent Downloader (MVP) =====" << endl;
 
-    // Step 1: Get magnet link from user
     cout << "Enter Magnet Link: ";
     getline(cin, magnetLink);
-
     if (magnetLink.empty()) {
-        cout << "Error: Magnet link cannot be empty!" << endl;
+        cout << "Error: Magnet link cannot be empty!\n";
         return 1;
     }
 
-    // Step 2: Get download path
     cout << "Enter download path (Default: ~/Downloads): ";
     getline(cin, downloadPath);
-
     if (downloadPath.empty()) {
-        downloadPath = "~/Downloads";  // default directory
+        downloadPath = "~/Downloads";
     }
 
-    // handling case where : ~ is not automatically understood by c/c++ so it expands the path
     string finalPath = expandPath(downloadPath);
     cout << "\nDownloading to: " << finalPath << endl;
 
-    // checking if aria2c exist?
+    // ensure download directory exists
+#ifdef _WIN32
+    string mkDirCmd = "if not exist \"" + finalPath + "\" mkdir \"" + finalPath + "\"";
+    system(mkDirCmd.c_str());
+#else
+    string mkDirCmd = "mkdir -p \"" + finalPath + "\"";
+    system(mkDirCmd.c_str());
+#endif
+
     if (!isAria2Installed())
     {
         cout << "Aria2 is not installed. Installing...\n";
         installAria2();
     }
-    
 
+    // build command
+    string command;
 #ifdef _WIN32
-    // string command = "aria2c.exe --dir=\"" + finalPath +
-    string aria2Path = expandPath("\\Aria2\\aria2c.exe");
-    string command = "\"" + aria2Path + "\" --dir=\"" + finalPath + 
-    // After installation, aria2c.exe is in PATH, but sometimes the PATH update requires a new terminal session.
-    // Consider using full path to the executable immediately after extraction
-    //This ensures your program runs aria2c right after installation, without waiting for PATH to refresh.  
-
+    // Use full path to aria2c.exe in the user install folder first (guarantees first-run)
+    string aria2Path = string(getenv("USERPROFILE")) + "\\Aria2\\aria2c.exe";
+    // if aria2 still not present at that path, fallback to calling aria2c (PATH)
+    // Build accurate command string
+    if (std::system((string("if exist \"") + aria2Path + "\" (echo 1) >nul 2>&1").c_str()) == 0) {
+        command = "\"" + aria2Path + "\" --dir=\"" + finalPath + "\" --bt-max-peers=50 --continue=true \"" + magnetLink + "\"";
+    } else {
+        command = "aria2c --dir=\"" + finalPath + "\" --bt-max-peers=50 --continue=true \"" + magnetLink + "\"";
+    }
 #else
-    string command = "aria2c --dir=\"" + finalPath +
+    command = "aria2c --dir=\"" + finalPath + "\" --bt-max-peers=50 --continue=true \"" + magnetLink + "\"";
 #endif
-        "\" --bt-max-peers=50 --continue=true \"" + magnetLink + "\"";
 
     cout << "\nStarting download using aria2c...\n";
-    system(command.c_str());
+    cout << "Command: " << command << "\n";
+    int runStatus = system(command.c_str());
+    if (runStatus != 0) {
+        cout << "aria2c exited with code " << runStatus << ".\n";
+    }
 
+    system("pause");
     return 0;
 }
-
-
