@@ -209,6 +209,7 @@ int main() {
 
     // build command
     string command;
+    string baseCmd;
 #ifdef _WIN32
     // Prefer found aria2 in user folder if present
     string userProfile = getenv("USERPROFILE");
@@ -219,7 +220,6 @@ int main() {
     bool localExists = (std::system((string("if exist \"") + defaultAria2 + "\" (exit 0) else (exit 1)").c_str()) == 0);
     bool subDirExists = (std::system((string("if exist \"") + aria2SubDir + "\" (exit 0) else (exit 1)").c_str()) == 0);
     
-    string baseCmd;
     if (localExists) {
         baseCmd = defaultAria2;
     } else if (subDirExists) {
@@ -233,25 +233,16 @@ int main() {
     ofstream batchOut(batchFile.c_str());
     if (batchOut.good()) {
         batchOut << "@echo off\n";
-        batchOut << "echo Starting aria2c with improved configuration...\n";
+        batchOut << "echo Starting aria2c...\n";
         batchOut << "\"" << baseCmd << "\" --dir=\"" << finalPath 
                  << "\" --bt-max-peers=50 --continue=true"
-                 << " --bt-tracker-timeout=30 --bt-tracker-interval=30"
-                 << " --bt-request-timeout=60 --bt-stop-timeout=300"
-                 << " --dht-entry-point=router.bittorrent.com:6881"
-                 << " --dht-entry-point=router.utorrent.com:6881"
-                 << " --enable-dht=true --enable-dht6=true"
-                 << " --bt-enable-lpd=true --enable-peer-exchange=true"
-                 << " --seed-time=0 --max-tries=5 --retry-wait=10"
-                 << " --timeout=60 --connect-timeout=30"
-                 << " --max-connection-per-server=4 --split=4"
-                 << " --min-split-size=1M --piece-length=1M"
-                 << " --bt-save-metadata=true --bt-metadata-only=false"
+                 << " --enable-dht=true --enable-peer-exchange=true"
+                 << " --bt-save-metadata=true"
                  << " \"" << magnetLink << "\"\n";
         batchOut.close();
         
         cout << "Batch file created at: " << batchFile << "\n";
-        cout << "Using improved aria2c configuration for better magnet link handling...\n";
+        cout << "Using simplified aria2c configuration...\n";
         
         command = "cmd /c \"" + batchFile + "\"";
     } else {
@@ -262,19 +253,33 @@ int main() {
                   magnetLink + "\"\"\"";
     }
 #else
+    baseCmd = "aria2c";
     command = "aria2c --dir=\"" + finalPath +
               "\" --bt-max-peers=50 --continue=true \"" +
               magnetLink + "\"";
 #endif
 
+    cout << "\nTesting aria2c before download...\n";
+    string testCmd = "\"" + baseCmd + "\" --version";
+    int testStatus = system(testCmd.c_str());
+    if (testStatus != 0) {
+        cout << "ERROR: aria2c test failed with code " << testStatus << "\n";
+        cout << "This means aria2c is not working properly.\n";
+        safePause();
+        return 1;
+    }
+    cout << "aria2c test passed!\n";
+    
     cout << "\nStarting download using aria2c...\n";
     cout << "Command: " << command << "\n";
-    cout << "\nNote: If download gets stuck at 0%, it may be due to:\n";
-    cout << "1. No seeders/peers available for this torrent\n";
-    cout << "2. Firewall blocking BitTorrent traffic\n";
-    cout << "3. ISP blocking BitTorrent protocols\n";
-    cout << "4. Poor tracker connectivity\n\n";
-    cout << "The download will timeout after 5 minutes if no progress is made...\n\n";
+    cout << "\nDebugging info:\n";
+    cout << "- Aria2c path: " << baseCmd << "\n";
+    cout << "- Download directory: " << finalPath << "\n";
+    cout << "- Magnet link length: " << magnetLink.length() << " characters\n";
+    cout << "\nIf download gets stuck, try:\n";
+    cout << "1. Check Windows Firewall settings\n";
+    cout << "2. Try running as Administrator\n";
+    cout << "3. Check if your ISP blocks BitTorrent\n\n";
     
     int runStatus = system(command.c_str());
     if (runStatus != 0) {
