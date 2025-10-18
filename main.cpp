@@ -233,11 +233,24 @@ int main() {
     ofstream batchOut(batchFile.c_str());
     if (batchOut.good()) {
         batchOut << "@echo off\n";
-        batchOut << "echo Starting aria2c...\n";
+        batchOut << "echo Starting aria2c with Windows-optimized settings...\n";
         batchOut << "\"" << baseCmd << "\" --dir=\"" << finalPath 
                  << "\" --bt-max-peers=50 --continue=true"
-                 << " --enable-dht=true --enable-peer-exchange=true"
-                 << " --bt-save-metadata=true"
+                 << " --enable-dht=true --enable-dht6=true --enable-peer-exchange=true"
+                 << " --bt-save-metadata=true --bt-metadata-only=false"
+                 << " --bt-tracker-timeout=30 --bt-tracker-interval=30"
+                 << " --bt-request-timeout=60 --bt-stop-timeout=300"
+                 << " --dht-entry-point=router.bittorrent.com:6881"
+                 << " --dht-entry-point=router.utorrent.com:6881"
+                 << " --dht-entry-point=dht.transmissionbt.com:6881"
+                 << " --bt-enable-lpd=true --bt-lpd-interface=0.0.0.0"
+                 << " --bt-external-ip=auto --bt-external-ip-version=4"
+                 << " --bt-prioritize-piece=head=32M,tail=32M"
+                 << " --bt-detach-seed-only=true --bt-remove-unselected-file=true"
+                 << " --max-tries=10 --retry-wait=5 --timeout=60"
+                 << " --connect-timeout=30 --max-connection-per-server=4"
+                 << " --split=4 --min-split-size=1M --piece-length=1M"
+                 << " --bt-hash-check-seed=true --bt-seed-unverified=true"
                  << " \"" << magnetLink << "\"\n";
         batchOut.close();
         
@@ -270,6 +283,16 @@ int main() {
     }
     cout << "aria2c test passed!\n";
     
+    // Test Windows network connectivity
+    cout << "\nTesting Windows network connectivity...\n";
+    int netTest = system("ping -n 1 8.8.8.8 >nul 2>&1");
+    if (netTest == 0) {
+        cout << "Network connectivity: OK\n";
+    } else {
+        cout << "Network connectivity: ISSUE DETECTED\n";
+        cout << "This may cause download problems. Check your internet connection.\n";
+    }
+    
     cout << "\nStarting download using aria2c...\n";
     cout << "Command: " << command << "\n";
     cout << "\nDebugging info:\n";
@@ -277,9 +300,13 @@ int main() {
     cout << "- Download directory: " << finalPath << "\n";
     cout << "- Magnet link length: " << magnetLink.length() << " characters\n";
     cout << "\nIf download gets stuck, try:\n";
-    cout << "1. Check Windows Firewall settings\n";
-    cout << "2. Try running as Administrator\n";
-    cout << "3. Check if your ISP blocks BitTorrent\n\n";
+    cout << "1. Run as Administrator (Right-click -> Run as administrator)\n";
+    cout << "2. Check Windows Firewall - allow aria2c through firewall\n";
+    cout << "3. Disable Windows Defender real-time protection temporarily\n";
+    cout << "4. Check if your ISP blocks BitTorrent traffic\n";
+    cout << "5. Try a VPN if your ISP blocks BitTorrent\n";
+    cout << "6. Check Windows Network Discovery settings\n\n";
+    cout << "Windows-specific networking optimizations applied...\n\n";
     
     int runStatus = system(command.c_str());
     if (runStatus != 0) {
