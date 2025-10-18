@@ -210,9 +210,9 @@ int main() {
     
     string baseCmd;
     if (localExists) {
-        baseCmd = "\"" + defaultAria2 + "\"";
+        baseCmd = defaultAria2;
     } else if (subDirExists) {
-        baseCmd = "\"" + aria2SubDir + "\"";
+        baseCmd = aria2SubDir;
     } else {
         baseCmd = "aria2c";
     }
@@ -225,6 +225,10 @@ int main() {
         batchOut << "\"" << baseCmd << "\" --dir=\"" << finalPath 
                  << "\" --bt-max-peers=50 --continue=true \"" << magnetLink << "\"\n";
         batchOut.close();
+        
+        cout << "Batch file created at: " << batchFile << "\n";
+        cout << "Batch content: \"" << baseCmd << "\" --dir=\"" << finalPath 
+             << "\" --bt-max-peers=50 --continue=true \"" << magnetLink << "\"\n";
         
         command = "cmd /c \"" + batchFile + "\"";
     } else {
