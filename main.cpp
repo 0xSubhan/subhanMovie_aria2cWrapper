@@ -2,6 +2,7 @@
 #include <string>
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -96,6 +97,18 @@ void installAria2()
     if (in.good()) {
         getline(in, aria2FullPath);
         in.close();
+        
+        // Remove BOM if present (UTF-8 BOM is EF BB BF)
+        if (aria2FullPath.length() >= 3 && 
+            (unsigned char)aria2FullPath[0] == 0xEF && 
+            (unsigned char)aria2FullPath[1] == 0xBB && 
+            (unsigned char)aria2FullPath[2] == 0xBF) {
+            aria2FullPath = aria2FullPath.substr(3);
+        }
+        
+        // Remove any leading/trailing whitespace
+        aria2FullPath.erase(0, aria2FullPath.find_first_not_of(" \t\r\n"));
+        aria2FullPath.erase(aria2FullPath.find_last_not_of(" \t\r\n") + 1);
     }
     // remove temp file
     string delPathFileCmd = ("del \"" + aria2PathFile + "\" >nul 2>&1");
@@ -189,17 +202,38 @@ int main() {
     // Prefer found aria2 in user folder if present
     string userProfile = getenv("USERPROFILE");
     string defaultAria2 = userProfile + "\\Aria2\\aria2c.exe";
+    string aria2SubDir = userProfile + "\\Aria2\\aria2-1.37.0-win-64bit-build1\\aria2c.exe";
 
-    // If a local aria2 exists in that path, use it; else rely on aria2c in PATH
+    // Check multiple possible locations for aria2c.exe
     bool localExists = (std::system((string("if exist \"") + defaultAria2 + "\" (exit 0) else (exit 1)").c_str()) == 0);
+    bool subDirExists = (std::system((string("if exist \"") + aria2SubDir + "\" (exit 0) else (exit 1)").c_str()) == 0);
+    
+    string baseCmd;
+    if (localExists) {
+        baseCmd = "\"" + defaultAria2 + "\"";
+    } else if (subDirExists) {
+        baseCmd = "\"" + aria2SubDir + "\"";
+    } else {
+        baseCmd = "aria2c";
+    }
 
-    string baseCmd = localExists ? ("\"" + defaultAria2 + "\"") : "aria2c";
-
-    // Use cmd wrapper so & inside magnet link doesn't break command parsing
-    command = "cmd /c \"\"" + baseCmd +
-              "\" --dir=\"" + finalPath +
-              "\" --bt-max-peers=50 --continue=true \"" +
-              magnetLink + "\"\"\"";
+    // Create a batch file to handle the command properly
+    string batchFile = userProfile + "\\aria2_temp.bat";
+    ofstream batchOut(batchFile.c_str());
+    if (batchOut.good()) {
+        batchOut << "@echo off\n";
+        batchOut << "\"" << baseCmd << "\" --dir=\"" << finalPath 
+                 << "\" --bt-max-peers=50 --continue=true \"" << magnetLink << "\"\n";
+        batchOut.close();
+        
+        command = "cmd /c \"" + batchFile + "\"";
+    } else {
+        // Fallback to direct command (may have issues with special chars)
+        command = "cmd /c \"\"" + baseCmd +
+                  "\" --dir=\"" + finalPath +
+                  "\" --bt-max-peers=50 --continue=true \"" +
+                  magnetLink + "\"\"\"";
+    }
 #else
     command = "aria2c --dir=\"" + finalPath +
               "\" --bt-max-peers=50 --continue=true \"" +
@@ -212,6 +246,14 @@ int main() {
     if (runStatus != 0) {
         cout << "aria2c exited with code " << runStatus << ".\n";
     }
+    
+    // Clean up batch file if it was created
+#ifdef _WIN32
+    if (command.find("aria2_temp.bat") != string::npos) {
+        string cleanupBatch = "del \"" + batchFile + "\" >nul 2>&1";
+        system(cleanupBatch.c_str());
+    }
+#endif
 
 #ifdef _WIN32
     cout << "Press Enter to exit...";
